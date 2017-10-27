@@ -335,6 +335,7 @@ static void state(struct connectdata *conn, sshstate nowstate)
     "SSH_AUTHLIST",
     "SSH_AUTH_PKEY_INIT",
     "SSH_AUTH_PKEY",
+    "SSH_AUTH_GSSAPI",
     "SSH_AUTH_PASS_INIT",
     "SSH_AUTH_PASS",
     "SSH_AUTH_AGENT_INIT",
