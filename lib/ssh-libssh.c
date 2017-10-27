@@ -299,6 +299,124 @@ static CURLcode myssh_getworkingpath(struct connectdata *conn, char *homedir,   
   return CURLE_OK;
 }
 
+/* Multiple options:
+ * 1. data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5] is set with an MD5
+ *    hash (90s style auth, not sure we should have it here)
+ * 2. data->set.ssh_keyfunc callback is set. Then we do trust on first
+ *    use. We even save on knownhosts if CURLKHSTAT_FINE_ADD_TO_FILE
+ *    is returned by it.
+ * 3. none of the above. We only accept if it is present on known hosts.
+ *
+ * Returns SSH_OK or SSH_ERROR.
+ */
+static int myssh_is_known(struct connectdata *conn)
+{
+  int rc;
+  struct Curl_easy *data = conn->data;
+  struct ssh_conn *sshc = &conn->proto.sshc;
+  ssh_key pubkey;
+  size_t hlen;
+  unsigned char *hash = NULL;
+  char *base64 = NULL;
+  int vstate;
+  enum curl_khmatch keymatch;
+  struct curl_khkey foundkey;
+  struct curl_khkey knownkey;
+  curl_sshkeycallback func =
+    data->set.ssh_keyfunc;
+
+  rc = ssh_get_publickey(sshc->ssh_session, &pubkey);
+  if (rc != SSH_OK)
+    return rc;
+
+  if (data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5]) {
+    rc = ssh_get_publickey_hash(pubkey, SSH_PUBLICKEY_HASH_MD5,
+                                &hash, &hlen);
+    if (rc != SSH_OK)
+      goto cleanup;
+
+    if (hlen < 0 || hlen != strlen(data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5]) ||
+        memcmp(&data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5], hash, hlen) != 0) {
+          rc = SSH_ERROR;
+          goto cleanup;
+    }
+
+    rc = SSH_OK;
+    goto cleanup;
+  }
+
+  vstate = ssh_is_server_known(sshc->ssh_session);
+  switch (vstate) {
+    case SSH_SERVER_KNOWN_OK:
+      keymatch = CURLKHMATCH_OK;
+    case SSH_SERVER_FILE_NOT_FOUND:
+    case SSH_SERVER_NOT_KNOWN:
+      keymatch = CURLKHMATCH_MISSING;
+    default:
+      keymatch = CURLKHMATCH_MISMATCH;
+  }
+
+  if (func) { /* use callback to determine action */
+    rc = ssh_pki_export_pubkey_base64(pubkey, &base64);
+    if (rc != SSH_OK)
+      goto cleanup;
+
+    foundkey.key = base64;
+    foundkey.len = strlen(base64);
+
+    switch(ssh_key_type(pubkey)) {
+      case SSH_KEYTYPE_RSA:
+        foundkey.keytype = CURLKHTYPE_RSA;
+        break;
+      case SSH_KEYTYPE_RSA1:
+        foundkey.keytype = CURLKHTYPE_RSA1;
+        break;
+      case SSH_KEYTYPE_ECDSA:
+        foundkey.keytype = CURLKHTYPE_ECDSA;
+        break;
+      case SSH_KEYTYPE_ED25519:
+        foundkey.keytype = CURLKHTYPE_ED25519;
+        break;
+      case SSH_KEYTYPE_DSS:
+        foundkey.keytype = CURLKHTYPE_DSS;
+        break;
+      default:
+        rc = SSH_ERROR;
+        goto cleanup;
+    }
+
+    /* we don't have anything equivalent to knownkey. Always NULL */
+    rc = func(data, NULL, &foundkey, /* from the remote host */
+	      keymatch, data->set.ssh_keyfunc_userp);
+
+    switch(rc) {
+      case CURLKHSTAT_FINE_ADD_TO_FILE:
+        rc = ssh_write_knownhost(sshc->ssh_session);
+        if (rc != SSH_OK) {
+          goto cleanup;
+        }
+        break;
+      case CURLKHSTAT_FINE:
+        break;
+      default: /* REJECT/DEFER */
+        rc = SSH_ERROR;
+        goto cleanup;
+    }
+  } else {
+    if (keymatch != CURLKHMATCH_OK) {
+      rc = SSH_ERROR;
+      goto cleanup;
+    }
+  }
+  rc = SSH_OK;
+
+cleanup:
+  if (hash)
+    ssh_clean_pubkey_hash(&hash);
+  ssh_key_free(pubkey);
+  return rc;
+}
+
 #define MOVE_TO_ERROR_STATE(_r) { \
 	state(conn, SSH_SESSION_FREE); \
 	sshc->actualcode = _r; \
@@ -375,42 +493,14 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool * block)
         break;
       }
 
-
-      if (data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5]) {
-        int hlen;
-        unsigned char *hash;
-
-        hlen = ssh_get_pubkey_hash(sshc->ssh_session, &hash);
-
-        if (hlen < 0
-            || hlen !=
-            strlen(data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5])
-            || memcmp(&data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5], hash,
-                      hlen) != 0) {
+      rc = myssh_is_known(conn);
+      if (rc != SSH_OK) {
           MOVE_TO_ERROR_STATE(CURLE_PEER_FAILED_VERIFICATION);
-        }
       }
 
-      vstate = ssh_is_server_known(sshc->ssh_session);
-      switch (vstate) {
-      case SSH_SERVER_KNOWN_OK:
-        state(conn, SSH_AUTHLIST);
-        break;
-      case SSH_SERVER_FILE_NOT_FOUND:
-      case SSH_SERVER_NOT_KNOWN:
-        rc = ssh_write_knownhost(sshc->ssh_session);
-        if (rc != SSH_OK) {
-          rc = SSH_ERROR;
-          sshc->actualcode = CURLE_PEER_FAILED_VERIFICATION;
-          state(conn, SSH_SESSION_FREE);
-        }
-        state(conn, SSH_AUTHLIST);
-        break;
-      default:
-        MOVE_TO_ERROR_STATE(CURLE_PEER_FAILED_VERIFICATION);
-      }
+      state(conn, SSH_AUTHLIST);
 
-      /* not reached */
+      /* fall through */
     case SSH_AUTHLIST:{
         sshc->authed = FALSE;
 
