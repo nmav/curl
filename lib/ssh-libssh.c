@@ -89,31 +89,13 @@
 #include "curl_printf.h"
 #include "curl_memory.h"
 #include "memdebug.h"
-
-#ifdef WIN32
-#undef  PATH_MAX
-#define PATH_MAX MAX_PATH
-#ifndef R_OK
-#define R_OK 4
-#endif
-#endif
-
-#ifndef PATH_MAX
-#define PATH_MAX 1024           /* just an extra precaution since there
-                                   are systems that have their definition
-                                   hidden well */
-#endif
+#include "curl_path.h"
 
 /* Local functions: */
-static CURLcode get_pathname(const char **cpp, char **path);
-
 static CURLcode myssh_connect(struct connectdata *conn, bool * done);
 static CURLcode myssh_multi_statemach(struct connectdata *conn,
                                       bool * done);
 static CURLcode myssh_do_it(struct connectdata *conn, bool * done);
-
-static CURLcode myssh_getworkingpath(struct connectdata *conn, char *homedir,
-                                     char **path);
 
 static CURLcode scp_done(struct connectdata *conn,
                          CURLcode, bool premature);
@@ -234,72 +216,6 @@ static void state(struct connectdata *conn, sshstate nowstate)
 #endif
 
   sshc->state = nowstate;
-}
-
-/* figure out the path to work with in this particular request */
-static CURLcode myssh_getworkingpath(struct connectdata *conn,
-                                     char *homedir, /* when SFTP is used */
-                                     char **path)
-{                               /* returns the  allocated
-                                   real path to work with */
-  struct Curl_easy *data = conn->data;
-  char *real_path = NULL;
-  char *working_path;
-  size_t working_path_len;
-  CURLcode result =
-      Curl_urldecode(data, data->state.path, 0, &working_path,
-                     &working_path_len, FALSE);
-
-  if(result)
-    return result;
-
-  /* Check for /~/, indicating relative to the user's home directory */
-  if(conn->handler->protocol & CURLPROTO_SCP) {
-    real_path = malloc(working_path_len + 1);
-    if(real_path == NULL) {
-      free(working_path);
-      return CURLE_OUT_OF_MEMORY;
-    }
-    if((working_path_len > 3) && (!memcmp(working_path, "/~/", 3)))
-      /* It is referenced to the home directory, so strip the leading '/~/' */
-      memcpy(real_path, working_path + 3, 4 + working_path_len - 3);
-    else
-      memcpy(real_path, working_path, 1 + working_path_len);
-  }
-  else if(conn->handler->protocol & CURLPROTO_SFTP) {
-    if((working_path_len > 1) && (working_path[1] == '~')) {
-      size_t homelen = strlen(homedir);
-      real_path = malloc(homelen + working_path_len + 1);
-      if(real_path == NULL) {
-        free(working_path);
-        return CURLE_OUT_OF_MEMORY;
-      }
-      /* It is referenced to the home directory, so strip the
-         leading '/' */
-      memcpy(real_path, homedir, homelen);
-      real_path[homelen] = '/';
-      real_path[homelen + 1] = '\0';
-      if(working_path_len > 3) {
-        memcpy(real_path + homelen + 1, working_path + 3,
-               1 + working_path_len - 3);
-      }
-    }
-    else {
-      real_path = malloc(working_path_len + 1);
-      if(real_path == NULL) {
-        free(working_path);
-        return CURLE_OUT_OF_MEMORY;
-      }
-      memcpy(real_path, working_path, 1 + working_path_len);
-    }
-  }
-
-  free(working_path);
-
-  /* store the pointer for the caller to receive */
-  *path = real_path;
-
-  return CURLE_OK;
 }
 
 /* Multiple options:
@@ -665,7 +581,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool * block)
       break;
 
     case SSH_SCP_TRANS_INIT:
-      result = myssh_getworkingpath(conn, sshc->homedir, &protop->path);
+      result = Curl_getworkingpath(conn, sshc->homedir, &protop->path);
       if(result) {
         sshc->actualcode = result;
         state(conn, SSH_STOP);
