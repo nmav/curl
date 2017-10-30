@@ -201,8 +201,11 @@ static const struct Curl_handler * const protocols[] = {
   &Curl_handler_tftp,
 #endif
 
-#ifdef USE_LIBSSH2
+#if defined(USE_LIBSSH2) || defined(USE_LIBSSH)
   &Curl_handler_scp,
+#endif
+
+#if defined(USE_LIBSSH2)
   &Curl_handler_sftp,
 #endif
 
@@ -2709,7 +2712,7 @@ CURLcode Curl_setopt(struct Curl_easy *data, CURLoption option,
     data->set.proxy_ssl.primary.sessionid = data->set.ssl.primary.sessionid;
     break;
 
-#ifdef USE_LIBSSH2
+#if defined(USE_LIBSSH2) || defined(USE_LIBSSH)
     /* we only include SSH options if explicitly built to support SSH */
   case CURLOPT_SSH_AUTH_TYPES:
     arg = va_arg(param, long);
