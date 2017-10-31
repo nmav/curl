@@ -912,8 +912,8 @@ static CURLcode myssh_block_statemach(struct connectdata *conn,
 
   while((sshc->state != SSH_STOP) && !result) {
     bool block;
-    time_t left = 1000;
-    struct curltime now = Curl_tvnow();
+    timediff_t left = 1000;
+    struct curltime now = Curl_now();
 
     result = myssh_statemach_act(conn, &block);
     if(result)
