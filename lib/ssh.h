@@ -24,10 +24,10 @@
 
 #include "curl_setup.h"
 
-#ifdef HAVE_LIBSSH2_H
+#if defined(HAVE_LIBSSH2_H)
 #include <libssh2.h>
 #include <libssh2_sftp.h>
-#elif HAVE_LIBSSH_LIBSSH_H
+#elif defined(HAVE_LIBSSH_LIBSSH_H)
 #include <libssh/libssh.h>
 #endif /* HAVE_LIBSSH2_H */
 
@@ -181,7 +181,7 @@ struct ssh_conn {
 
 extern const struct Curl_handler Curl_handler_scp;
 
-#elif USE_LIBSSH2
+#elif defined(USE_LIBSSH2)
 
 /* Feature detection based on version numbers to better work with
    non-configure platforms */
