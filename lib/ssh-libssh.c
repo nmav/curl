@@ -877,14 +877,22 @@ static int myssh_getsock(struct connectdata *conn,
 static void myssh_block2waitfor(struct connectdata *conn, bool block)
 {
   struct ssh_conn *sshc = &conn->proto.sshc;
+  int dir;
+
+  /* If it didn't block, or nothing was returned by ssh_get_poll_flags
+   * have the original set */
+  conn->waitfor = sshc->orig_waitfor;
 
   if(block) {
-    /* libssh does not block on write */
-    conn->waitfor = KEEP_RECV;
+    dir = ssh_get_poll_flags(sshc->ssh_session);
+    if(dir & SSH_READ_PENDING) {
+      /* translate the libssh2 define bits into our own bit defines */
+      conn->waitfor = KEEP_RECV;
+    }
+    else if(dir & SSH_WRITE_PENDING) {
+      conn->waitfor = KEEP_SEND;
+    }
   }
-  else
-    /* It didn't block, put back the original set */
-    conn->waitfor = sshc->orig_waitfor;
 }
 
 /* called repeatedly until done from multi.c */
