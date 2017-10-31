@@ -90,22 +90,22 @@
 #include "curl_path.h"
 
 /* Local functions: */
-static CURLcode myssh_connect(struct connectdata *conn, bool * done);
+static CURLcode myssh_connect(struct connectdata *conn, bool *done);
 static CURLcode myssh_multi_statemach(struct connectdata *conn,
-                                      bool * done);
-static CURLcode myssh_do_it(struct connectdata *conn, bool * done);
+                                      bool *done);
+static CURLcode myssh_do_it(struct connectdata *conn, bool *done);
 
 static CURLcode scp_done(struct connectdata *conn,
                          CURLcode, bool premature);
-static CURLcode scp_doing(struct connectdata *conn, bool * dophase_done);
+static CURLcode scp_doing(struct connectdata *conn, bool *dophase_done);
 static CURLcode scp_disconnect(struct connectdata *conn,
                                bool dead_connection);
 
-static int myssh_getsock(struct connectdata *conn, curl_socket_t * sock,
+static int myssh_getsock(struct connectdata *conn, curl_socket_t *sock,
                          int numsocks);
 
 static int myssh_perform_getsock(const struct connectdata *conn,
-                                 curl_socket_t * sock,
+                                 curl_socket_t *sock,
                                  int numsocks);
 
 static CURLcode myssh_setup_connection(struct connectdata *conn);
@@ -371,7 +371,7 @@ cleanup:
  * to will be set to TRUE if the libssh function returns SSH_AGAIN
  * meaning it wants to be called again when the socket is ready
  */
-static CURLcode myssh_statemach_act(struct connectdata *conn, bool * block)
+static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 {
   CURLcode result = CURLE_OK;
   struct Curl_easy *data = conn->data;
@@ -844,8 +844,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool * block)
 /* called by the multi interface to figure out what socket(s) to wait for and
    for what actions in the DO_DONE, PERFORM and WAITPERFORM states */
 static int myssh_perform_getsock(const struct connectdata *conn,
-                                 curl_socket_t * sock,  /* points to numsocks
-                                                           number of sockets */
+                                 curl_socket_t *sock,  /* points to numsocks
+                                                          number of sockets */
                                  int numsocks)
 {
   int bitmap = GETSOCK_BLANK;
@@ -865,7 +865,7 @@ static int myssh_perform_getsock(const struct connectdata *conn,
 /* Generic function called by the multi interface to figure out what socket(s)
    to wait for and for what actions during the DOING and PROTOCONNECT states*/
 static int myssh_getsock(struct connectdata *conn,
-                         curl_socket_t * sock,  /* points to numsocks
+                         curl_socket_t *sock,  /* points to numsocks
                                                    number of sockets */
                          int numsocks)
 {
@@ -889,7 +889,7 @@ static void myssh_block2waitfor(struct connectdata *conn, bool block)
 
 /* called repeatedly until done from multi.c */
 static CURLcode myssh_multi_statemach(struct connectdata *conn,
-                                      bool * done)
+                                      bool *done)
 {
   struct ssh_conn *sshc = &conn->proto.sshc;
   CURLcode result = CURLE_OK;
@@ -969,7 +969,7 @@ static Curl_send scp_send;
  * Curl_ssh_connect() gets called from Curl_protocol_connect() to allow us to
  * do protocol-specific actions at connect-time.
  */
-static CURLcode myssh_connect(struct connectdata *conn, bool * done)
+static CURLcode myssh_connect(struct connectdata *conn, bool *done)
 {
   struct ssh_conn *ssh;
   CURLcode result;
@@ -1042,7 +1042,7 @@ static CURLcode myssh_connect(struct connectdata *conn, bool * done)
 }
 
 /* called from multi.c while DOing */
-static CURLcode scp_doing(struct connectdata *conn, bool * dophase_done)
+static CURLcode scp_doing(struct connectdata *conn, bool *dophase_done)
 {
   CURLcode result;
 
@@ -1065,7 +1065,7 @@ static CURLcode scp_doing(struct connectdata *conn, bool * dophase_done)
 
 static
 CURLcode scp_perform(struct connectdata *conn,
-                     bool * connected, bool * dophase_done)
+                     bool *connected, bool *dophase_done)
 {
   CURLcode result = CURLE_OK;
 
@@ -1087,7 +1087,7 @@ CURLcode scp_perform(struct connectdata *conn,
   return result;
 }
 
-static CURLcode myssh_do_it(struct connectdata *conn, bool * done)
+static CURLcode myssh_do_it(struct connectdata *conn, bool *done)
 {
   CURLcode result;
   bool connected = 0;
@@ -1178,7 +1178,7 @@ static CURLcode scp_done(struct connectdata *conn, CURLcode status,
 }
 
 static ssize_t scp_send(struct connectdata *conn, int sockindex,
-                        const void *mem, size_t len, CURLcode * err)
+                        const void *mem, size_t len, CURLcode *err)
 {
   int rc;
   (void) sockindex; /* we only support SCP on the fixed known primary socket */
@@ -1200,7 +1200,7 @@ static ssize_t scp_send(struct connectdata *conn, int sockindex,
 }
 
 static ssize_t scp_recv(struct connectdata *conn, int sockindex,
-                        char *mem, size_t len, CURLcode * err)
+                        char *mem, size_t len, CURLcode *err)
 {
   ssize_t nread;
   (void) sockindex; /* we only support SCP on the fixed known primary socket */
