@@ -239,7 +239,6 @@ static int myssh_is_known(struct connectdata *conn)
   int vstate;
   enum curl_khmatch keymatch;
   struct curl_khkey foundkey;
-  struct curl_khkey knownkey;
   curl_sshkeycallback func =
     data->set.ssh_keyfunc;
 
@@ -253,8 +252,7 @@ static int myssh_is_known(struct connectdata *conn)
     if(rc != SSH_OK)
       goto cleanup;
 
-    if(hlen < 0 ||
-       hlen != strlen(data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5]) ||
+    if(hlen != strlen(data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5]) ||
        memcmp(&data->set.str[STRING_SSH_HOST_PUBLIC_KEY_MD5], hash, hlen)) {
           rc = SSH_ERROR;
           goto cleanup;
@@ -293,9 +291,11 @@ static int myssh_is_known(struct connectdata *conn)
       case SSH_KEYTYPE_ECDSA:
         foundkey.keytype = CURLKHTYPE_ECDSA;
         break;
+#if LIBSSH_VERSION_INT >= SSH_VERSION_INT(0,7,0)
       case SSH_KEYTYPE_ED25519:
         foundkey.keytype = CURLKHTYPE_ED25519;
         break;
+#endif
       case SSH_KEYTYPE_DSS:
         foundkey.keytype = CURLKHTYPE_DSS;
         break;
@@ -377,11 +377,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
   struct Curl_easy *data = conn->data;
   struct SSHPROTO *protop = data->req.protop;
   struct ssh_conn *sshc = &conn->proto.sshc;
-  curl_socket_t sock = conn->sock[FIRSTSOCKET];
-  char *new_readdir_line;
-  int rc = SSH_NO_ERROR, vstate;
-  int err;
-  int seekerr = CURL_SEEKFUNC_OK;
+  int rc = SSH_NO_ERROR;
   const char *err_msg;
   *block = 0;                   /* we're not blocking by default */
 
@@ -660,7 +656,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
       rc = ssh_scp_push_file(sshc->scp_session, protop->path,
                              data->state.infilesize,
-                             data->set.new_file_perms);
+                             (int)data->set.new_file_perms);
       if(rc != SSH_OK) {
         err_msg = ssh_get_error(sshc->ssh_session);
         failf(conn->data, "%s", err_msg);
