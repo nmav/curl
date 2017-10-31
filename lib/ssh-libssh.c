@@ -22,8 +22,6 @@
  *
  ***************************************************************************/
 
-/* #define CURL_LIBSSH2_DEBUG */
-
 #include "curl_setup.h"
 
 #ifdef USE_LIBSSH
@@ -370,7 +368,7 @@ cleanup:
 /*
  * ssh_statemach_act() runs the SSH state machine as far as it can without
  * blocking and without reaching the end.  The data the pointer 'block' points
- * to will be set to TRUE if the libssh function returns LIBSSH2_ERROR_EAGAIN
+ * to will be set to TRUE if the libssh function returns SSH_AGAIN
  * meaning it wants to be called again when the socket is ready
  */
 static CURLcode myssh_statemach_act(struct connectdata *conn, bool * block)
@@ -1219,4 +1217,4 @@ static ssize_t scp_recv(struct connectdata *conn, int sockindex,
   return nread;
 }
 
-#endif                          /* USE_LIBSSH2 */
+#endif                          /* USE_LIBSSH */

@@ -2800,7 +2800,7 @@ if test X"$OPT_LIBSSH2" != Xno; then
     LIBS=$CLEANLIBS
   fi
 elif test X"$OPT_LIBSSH" != Xno; then
-  dnl backup the pre-libssh2 variables
+  dnl backup the pre-libssh variables
   CLEANLDFLAGS="$LDFLAGS"
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
