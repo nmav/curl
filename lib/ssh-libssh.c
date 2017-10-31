@@ -632,12 +632,12 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         }
 
         sshc->scp_session =
-            ssh_scp_new(sshc->ssh_session, SSH_SCP_WRITE, protop->path);
+          ssh_scp_new(sshc->ssh_session, SSH_SCP_WRITE, protop->path);
         state(conn, SSH_SCP_UPLOAD_INIT);
       }
       else {
         sshc->scp_session =
-            ssh_scp_new(sshc->ssh_session, SSH_SCP_READ, protop->path);
+          ssh_scp_new(sshc->ssh_session, SSH_SCP_READ, protop->path);
         state(conn, SSH_SCP_DOWNLOAD_INIT);
       }
 
