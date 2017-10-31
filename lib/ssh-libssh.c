@@ -1186,16 +1186,23 @@ static ssize_t scp_send(struct connectdata *conn, int sockindex,
 {
   int rc;
   (void) sockindex; /* we only support SCP on the fixed known primary socket */
+  (void) err;
 
   rc = ssh_scp_write(conn->proto.sshc.scp_session, mem, len);
 
+#if 0
+  /* The following code is misleading, mostly added as wishful thinking
+   * that libssh at some point will implement non-blocking ssh_scp_write/read.
+   * Currently rc can only be number of bytes read or SSH_ERROR. */
   myssh_block2waitfor(conn, (rc == SSH_AGAIN) ? TRUE : FALSE);
 
   if(rc == SSH_AGAIN) {
     *err = CURLE_AGAIN;
     return 0;
   }
-  else if(rc != SSH_OK) {
+  else
+#endif
+  if(rc != SSH_OK) {
     *err = CURLE_SSH;
     return -1;
   }
@@ -1207,16 +1214,23 @@ static ssize_t scp_recv(struct connectdata *conn, int sockindex,
                         char *mem, size_t len, CURLcode *err)
 {
   ssize_t nread;
+  (void) err;
   (void) sockindex; /* we only support SCP on the fixed known primary socket */
 
   /* libssh returns int */
   nread = ssh_scp_read(conn->proto.sshc.scp_session, mem, len);
+
+#if 0
+  /* The following code is misleading, mostly added as wishful thinking
+   * that libssh at some point will implement non-blocking ssh_scp_write/read.
+   * Currently rc can only be SSH_OK or SSH_ERROR. */
 
   myssh_block2waitfor(conn, (nread == SSH_AGAIN) ? TRUE : FALSE);
   if(nread == SSH_AGAIN) {
     *err = CURLE_AGAIN;
     nread = -1;
   }
+#endif
 
   return nread;
 }
