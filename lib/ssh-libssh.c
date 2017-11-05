@@ -600,10 +600,6 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
       conn->sockfd = ssh_get_fd(sshc->ssh_session);
       conn->writesockfd = CURL_SOCKET_BAD;
 
-      if(conn->handler->protocol == CURLPROTO_SFTP) {
-        state(conn, SSH_SFTP_INIT);
-        break;
-      }
       infof(data, "SSH CONNECT phase done\n");
       state(conn, SSH_STOP);
       break;
