@@ -38,7 +38,7 @@
 #endif
 
 CURLcode Curl_getworkingpath(struct connectdata *conn,
-			     char *homedir,
+                             char *homedir,
                              char **path);
 
 CURLcode

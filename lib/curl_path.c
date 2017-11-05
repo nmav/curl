@@ -20,6 +20,10 @@
  *
  ***************************************************************************/
 
+#include "curl_setup.h"
+
+#include <curl/curl.h>
+#include "curl_memory.h"
 #include "curl_path.h"
 #include "escape.h"
 #include "memdebug.h"
