@@ -262,6 +262,11 @@ static int myssh_is_known(struct connectdata *conn)
     goto cleanup;
   }
 
+  if(data->set.ssl.primary.verifyhost != TRUE) {
+    rc = SSH_OK;
+    goto cleanup;
+  }
+
   vstate = ssh_is_server_known(sshc->ssh_session);
   switch(vstate) {
     case SSH_SERVER_KNOWN_OK:
@@ -414,12 +419,6 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
       /* fall-through */
     case SSH_HOSTKEY:
-
-      if(data->set.ssl.primary.verifyhost != TRUE) {
-        state(conn, SSH_AUTHLIST);
-        break;
-      }
-
 
       rc = myssh_is_known(conn);
       if(rc != SSH_OK) {
