@@ -145,6 +145,7 @@ struct ssh_conn {
 
 #if defined(USE_LIBSSH)
 /* our variables */
+  unsigned kbd_state; /* 0 or 1 */
   ssh_key privkey;
   ssh_key pubkey;
   int auth_methods;

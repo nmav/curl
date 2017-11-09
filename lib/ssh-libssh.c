@@ -222,7 +222,6 @@ static void state(struct connectdata *conn, sshstate nowstate)
     "SSH_AUTHLIST",
     "SSH_AUTH_PKEY_INIT",
     "SSH_AUTH_PKEY",
-    "SSH_AUTH_GSSAPI",
     "SSH_AUTH_PASS_INIT",
     "SSH_AUTH_PASS",
     "SSH_AUTH_AGENT_INIT",
@@ -232,6 +231,7 @@ static void state(struct connectdata *conn, sshstate nowstate)
     "SSH_AUTH_HOST",
     "SSH_AUTH_KEY_INIT",
     "SSH_AUTH_KEY",
+    "SSH_AUTH_GSSAPI",
     "SSH_AUTH_DONE",
     "SSH_SFTP_INIT",
     "SSH_SFTP_REALPATH",
@@ -436,6 +436,16 @@ cleanup:
     MOVE_TO_ERROR_STATE(CURLE_LOGIN_DENIED); \
   }
 
+#define MOVE_TO_TERTIARY_AUTH \
+  if(sshc->auth_methods & SSH_AUTH_METHOD_INTERACTIVE) { \
+    rc = SSH_OK; \
+    state(conn, SSH_AUTH_KEY_INIT); \
+    break; \
+  } \
+  else { \
+    MOVE_TO_LAST_AUTH; \
+  }
+
 #define MOVE_TO_SECONDARY_AUTH \
   if(sshc->auth_methods & SSH_AUTH_METHOD_GSSAPI_MIC) { \
     rc = SSH_OK; \
@@ -443,9 +453,72 @@ cleanup:
     break; \
   } \
   else { \
-    MOVE_TO_LAST_AUTH; \
+    MOVE_TO_TERTIARY_AUTH; \
   }
 
+static
+int myssh_auth_interactive(struct connectdata *conn)
+{
+  int rc;
+  struct ssh_conn *sshc = &conn->proto.sshc;
+  int nprompts;
+
+restart:
+  switch(sshc->kbd_state) {
+    case 0:
+      rc = ssh_userauth_kbdint(sshc->ssh_session, NULL, NULL);
+      if (rc == SSH_AUTH_AGAIN)
+        return SSH_AGAIN;
+
+      if (rc != SSH_AUTH_INFO)
+        return SSH_ERROR;
+
+      nprompts = ssh_userauth_kbdint_getnprompts(sshc->ssh_session);
+      if (nprompts == SSH_ERROR || nprompts != 1)
+        return SSH_ERROR;
+
+      rc = ssh_userauth_kbdint_setanswer(sshc->ssh_session, 0, conn->passwd);
+      if (rc < 0)
+        return SSH_ERROR;
+
+    /* fallthrough */
+    case 1:
+      sshc->kbd_state = 1;
+
+      rc = ssh_userauth_kbdint(sshc->ssh_session, NULL, NULL);
+      if (rc == SSH_AUTH_AGAIN)
+        return SSH_AGAIN;
+      else if (rc == SSH_AUTH_SUCCESS)
+        rc = SSH_OK;
+      else if (rc == SSH_AUTH_INFO) {
+        nprompts = ssh_userauth_kbdint_getnprompts(sshc->ssh_session);
+        if (nprompts != 0)
+          return SSH_ERROR;
+
+        sshc->kbd_state = 2;
+        goto restart;
+      } else
+        rc = SSH_ERROR;
+      break;
+    case 2:
+      sshc->kbd_state = 2;
+
+      rc = ssh_userauth_kbdint(sshc->ssh_session, NULL, NULL);
+      if (rc == SSH_AUTH_AGAIN)
+        return SSH_AGAIN;
+      else if (rc == SSH_AUTH_SUCCESS)
+        rc = SSH_OK;
+      else
+        rc = SSH_ERROR;
+
+      break;
+    default:
+      return SSH_ERROR;
+  }
+
+  sshc->kbd_state = 0;
+  return rc;
+}
 
 /*
  * ssh_statemach_act() runs the SSH state machine as far as it can without
@@ -532,6 +605,9 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         else if(sshc->auth_methods & SSH_AUTH_METHOD_GSSAPI_MIC) {
           state(conn, SSH_AUTH_GSSAPI);
         }
+        else if(sshc->auth_methods & SSH_AUTH_METHOD_INTERACTIVE) {
+          state(conn, SSH_AUTH_KEY_INIT);
+        }
         else if(sshc->auth_methods & SSH_AUTH_METHOD_PASSWORD) {
           state(conn, SSH_AUTH_PASS_INIT);
         }
@@ -617,7 +693,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
     case SSH_AUTH_GSSAPI:
       if(!(data->set.ssh_auth_types & CURLSSH_AUTH_GSSAPI)) {
-        MOVE_TO_LAST_AUTH;
+        MOVE_TO_TERTIARY_AUTH;
       }
 
       rc = ssh_userauth_gssapi(sshc->ssh_session);
@@ -634,7 +710,30 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         break;
       }
 
-      MOVE_TO_LAST_AUTH;
+      MOVE_TO_TERTIARY_AUTH;
+      break;
+
+    case SSH_AUTH_KEY_INIT:
+      if(data->set.ssh_auth_types & CURLSSH_AUTH_KEYBOARD) {
+        state(conn, SSH_AUTH_KEY);
+      }
+      else {
+        MOVE_TO_LAST_AUTH;
+      }
+      break;
+
+    case SSH_AUTH_KEY:
+
+      /* Authentication failed. Continue with keyboard-interactive now. */
+      rc = myssh_auth_interactive(conn);
+      if(rc == SSH_AGAIN) {
+        break;
+      }
+      if(rc == SSH_OK) {
+        sshc->authed = TRUE;
+        infof(data, "completed keyboard interactive authentication\n");
+      }
+      state(conn, SSH_AUTH_DONE);
       break;
 
     case SSH_AUTH_PASS_INIT:
