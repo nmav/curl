@@ -212,7 +212,7 @@ static CURLcode sftp_error_to_CURLE(int err)
 static void state(struct connectdata *conn, sshstate nowstate)
 {
   struct ssh_conn *sshc = &conn->proto.sshc;
-#if 0//defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#if 1//defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
   /* for debug purposes */
   static const char *const names[] = {
     "SSH_STOP",
@@ -1497,6 +1497,11 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
       sshc->actualcode = result;
     }
     else {
+      conn->proto.sshc.sftp_file_index = sftp_async_read_begin(conn->proto.sshc.sftp_file, data->req.size);
+      if (conn->proto.sshc.sftp_file_index < 0) {
+        MOVE_TO_SFTP_CLOSE_STATE();
+      }
+
       state(conn, SSH_STOP);
     }
     break;
@@ -2231,7 +2236,6 @@ static CURLcode sftp_doing(struct connectdata *conn,
                            bool *dophase_done)
 {
   CURLcode result = myssh_multi_statemach(conn, dophase_done);
-
   if(*dophase_done) {
     DEBUGF(infof(conn->data, "DO phase is complete\n"));
   }
