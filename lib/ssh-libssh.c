@@ -212,7 +212,7 @@ static CURLcode sftp_error_to_CURLE(int err)
 static void state(struct connectdata *conn, sshstate nowstate)
 {
   struct ssh_conn *sshc = &conn->proto.sshc;
-#if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#if 0//defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
   /* for debug purposes */
   static const char *const names[] = {
     "SSH_STOP",
@@ -279,7 +279,7 @@ static void state(struct connectdata *conn, sshstate nowstate)
 
 
   if(sshc->state != nowstate) {
-    infof(conn->data, "SSH %p state change from %s to %s\n",
+    fprintf(stderr, "SSH %p state change from %s to %s\n",
           (void *) sshc, names[sshc->state], names[nowstate]);
   }
 #endif
@@ -1225,6 +1225,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
             snprintf(sshc->readdir_linkPath, PATH_MAX, "%s%s", protop->path,
                      sshc->readdir_filename);
+
             state(conn, SSH_SFTP_READDIR_LINK);
             break;
           }
@@ -1255,11 +1256,23 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         MOVE_TO_SFTP_CLOSE_STATE();
       }
 
-      Curl_safefree(sshc->readdir_linkPath);
+      if (sshc->readdir_link_attrs->name == NULL) {
+        sshc->readdir_tmp = sftp_readlink(sshc->sftp_session,
+                                          sshc->readdir_linkPath);
+        if (sshc->readdir_filename == NULL)
+          sshc->readdir_len = 0;
+        else
+          sshc->readdir_len = strlen(sshc->readdir_tmp);
+        sshc->readdir_longentry = NULL;
+	sshc->readdir_filename = sshc->readdir_tmp;
+      }
+      else {
+        sshc->readdir_len = strlen(sshc->readdir_link_attrs->name);
+        sshc->readdir_filename = sshc->readdir_link_attrs->name;
+        sshc->readdir_longentry = sshc->readdir_link_attrs->longname;
+      }
 
-      sshc->readdir_len = strlen(sshc->readdir_link_attrs->name);
-      sshc->readdir_filename = sshc->readdir_link_attrs->name;
-      sshc->readdir_longentry = sshc->readdir_link_attrs->longname;
+      Curl_safefree(sshc->readdir_linkPath);
 
       /* get room for the filename and extra output */
       sshc->readdir_totalLen += 4 + sshc->readdir_len;
@@ -1306,6 +1319,9 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         data->req.bytecount += sshc->readdir_currLen;
       }
       Curl_safefree(sshc->readdir_line);
+      ssh_string_free_char(sshc->readdir_tmp);
+      sshc->readdir_tmp = NULL;
+
       if(result) {
         state(conn, SSH_STOP);
       }
@@ -1707,6 +1723,11 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
       DEBUGASSERT(sshc->ssh_session == NULL);
       DEBUGASSERT(sshc->scp_session == NULL);
+
+      if (sshc->readdir_tmp) {
+	ssh_string_free_char(sshc->readdir_tmp);
+        sshc->readdir_tmp = NULL;
+      }
 
       if (sshc->quote_attrs)
         sftp_attributes_free(sshc->quote_attrs);

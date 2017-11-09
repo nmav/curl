@@ -160,6 +160,7 @@ struct ssh_conn {
 
   const char *readdir_filename; /* points within readdir_attrs */
   const char *readdir_longentry;
+  char *readdir_tmp;
 #elif defined(USE_LIBSSH2)
   char *readdir_filename;
   char *readdir_longentry;
