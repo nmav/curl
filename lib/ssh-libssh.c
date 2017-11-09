@@ -2329,7 +2329,7 @@ static ssize_t sftp_recv(struct connectdata *conn, int sockindex,
 
   }
   else if(nread < 0) {
-    *err = CURLE_SSH;
+    *err = CURLE_RECV_ERROR;
   }
   return nread;
 }
