@@ -548,7 +548,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
       sshc->actualcode = CURLE_OK;
 
 #if 0
-      ssh_set_log_level(SSH_LOG_PACKET);
+      ssh_set_log_level(SSH_LOG_PROTOCOL);
 #endif
 
       /* Set libssh to non-blocking, since everything internally is
@@ -2086,7 +2086,7 @@ static CURLcode myssh_connect(struct connectdata *conn, bool *done)
                     &conn->remote_port);
 
   if(data->set.ssh_compression) {
-    ssh_options_set(ssh->ssh_session, SSH_OPTIONS_COMPRESSION, "yes");
+    ssh_options_set(ssh->ssh_session, SSH_OPTIONS_COMPRESSION, "zlib,zlib@openssh.com,none");
   }
 
   ssh->privkey = NULL;
