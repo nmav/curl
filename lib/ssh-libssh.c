@@ -2537,24 +2537,19 @@ static void sftp_quote_stat(struct connectdata *conn)
    * and modify them accordingly to command. Then we switch to 
    * QUOTE_SETSTAT state to write new ones.
    */
-  if (!strncasecompare(cmd, "chmod", 5)) {
-    /* Since chown and chgrp only set owner OR group but libssh wants to
-     * set them both at once, we need to obtain the current ownership
-     * first.  This takes an extra protocol round trip.
-     */
-    if (sshc->quote_attrs)
-      sftp_attributes_free(sshc->quote_attrs);
-    sshc->quote_attrs = sftp_stat(sshc->sftp_session, sshc->quote_path2);
-    if (sshc->quote_attrs == NULL) {
-      Curl_safefree(sshc->quote_path1);
-      Curl_safefree(sshc->quote_path2);
-      failf(data, "Attempt to get SFTP stats failed: %d",
-            sftp_get_error(sshc->sftp_session));
-      state(conn, SSH_SFTP_CLOSE);
-      sshc->nextstate = SSH_NO_STATE;
-      sshc->actualcode = CURLE_QUOTE_ERROR;
-      return;
-    }
+
+  if (sshc->quote_attrs)
+    sftp_attributes_free(sshc->quote_attrs);
+  sshc->quote_attrs = sftp_stat(sshc->sftp_session, sshc->quote_path2);
+  if (sshc->quote_attrs == NULL) {
+    Curl_safefree(sshc->quote_path1);
+    Curl_safefree(sshc->quote_path2);
+    failf(data, "Attempt to get SFTP stats failed: %d",
+          sftp_get_error(sshc->sftp_session));
+    state(conn, SSH_SFTP_CLOSE);
+    sshc->nextstate = SSH_NO_STATE;
+    sshc->actualcode = CURLE_QUOTE_ERROR;
+    return;
   }
 
   /* Now set the new attributes... */
@@ -2570,6 +2565,7 @@ static void sftp_quote_stat(struct connectdata *conn)
       sshc->actualcode = CURLE_QUOTE_ERROR;
       return;
     }
+    sshc->quote_attrs->flags |= SSH_FILEXFER_ATTR_UIDGID;
   } else if (strncasecompare(cmd, "chmod", 5)) {
     mode_t perms;
     perms = strtoul(sshc->quote_path1, NULL, 8);
@@ -2583,6 +2579,8 @@ static void sftp_quote_stat(struct connectdata *conn)
       sshc->actualcode = CURLE_QUOTE_ERROR;
       return;
     }
+    sshc->quote_attrs->permissions = perms;
+    sshc->quote_attrs->flags |= SSH_FILEXFER_ATTR_PERMISSIONS;
   } else if (strncasecompare(cmd, "chown", 5)) {
     sshc->quote_attrs->uid = strtoul(sshc->quote_path1, NULL, 10);
     if (sshc->quote_attrs->uid == 0 && !ISDIGIT(sshc->quote_path1[0]) &&
@@ -2595,6 +2593,7 @@ static void sftp_quote_stat(struct connectdata *conn)
       sshc->actualcode = CURLE_QUOTE_ERROR;
       return;
     }
+    sshc->quote_attrs->flags |= SSH_FILEXFER_ATTR_UIDGID;
   }
 
   /* Now send the completed structure... */
