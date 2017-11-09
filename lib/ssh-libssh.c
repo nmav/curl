@@ -992,13 +992,13 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
 
       if(data->set.ftp_append)
         /* Try to open for append, but create if nonexisting */
-        flags = SSH_FXF_WRITE|SSH_FXF_CREAT|SSH_FXF_APPEND;
+        flags = O_WRONLY|O_CREAT|O_APPEND;
       else if(data->state.resume_from > 0)
         /* If we have restart position then open for append */
-        flags = SSH_FXF_WRITE|SSH_FXF_APPEND;
+        flags = O_WRONLY|O_APPEND;
       else
         /* Clear file before writing (normal behaviour) */
-        flags = SSH_FXF_WRITE|SSH_FXF_CREAT|SSH_FXF_TRUNC;
+        flags = O_WRONLY|O_APPEND|O_CREAT|O_TRUNC;
 
       if (sshc->sftp_file)
         sftp_close(sshc->sftp_file);
@@ -1007,6 +1007,7 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
                   flags, data->set.new_file_perms);
       if(!sshc->sftp_file) {
         err = sftp_get_error(sshc->sftp_session);
+
         if(((err == SSH_FX_NO_SUCH_FILE || err == SSH_FX_FAILURE ||
              err == SSH_FX_NO_SUCH_PATH)) && (data->set.ftp_create_missing_dirs &&
              (strlen(protop->path) > 1))) {
