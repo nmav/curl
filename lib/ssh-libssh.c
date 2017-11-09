@@ -797,6 +797,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after this action */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
@@ -813,6 +815,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after this action */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
@@ -829,6 +833,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after creating a dir */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
@@ -846,21 +852,25 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after this action */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
     case SSH_SFTP_QUOTE_RMDIR:
       rc = sftp_rmdir(sshc->sftp_session, sshc->quote_path1);
-      if(rc != 0 && !sshc->acceptfail) {
+      if(rc < 0 && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         err = sftp_get_error(sshc->sftp_session);
         failf(data, "rmdir command failed: %s",
 	      ssh_get_error(sshc->ssh_session));
         state(conn, SSH_SFTP_CLOSE);
-        sshc->nextstate = SSH_NO_STATE;
+        sshc->nextstate = SSH_SFTP_CLOSE;
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after deleting a dir */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
@@ -876,6 +886,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
         sshc->actualcode = sftp_error_to_CURLE(err);
         break;
       }
+      /* we shouldn't do any action after this action */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
 
@@ -927,6 +939,8 @@ static CURLcode myssh_statemach_act(struct connectdata *conn, bool *block)
           sshc->actualcode = result;
         }
       }
+      /* we shouldn't do any action after this action */
+      sshc->nextstate = SSH_SFTP_CLOSE;
       state(conn, SSH_SFTP_NEXT_QUOTE);
       break;
     }
